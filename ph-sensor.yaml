@@ -1,0 +1,490 @@
+esphome:
+  name: ph-sensor
+  friendly_name: pH_Sensor
+  on_boot:
+    priority: -10
+    then:
+      - script.execute: homing_all
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+  encryption:
+    key: "OpipMu63WiU708qH9wR9ekQ6ND19DrLzTUGC5ySd/cQ="
+  services:
+    - service: pokreni_automatsko_mjerenje
+      then:
+        - script.execute: automatsko_mjerenje
+
+ota:
+  - platform: esphome
+    password: "e5eb820775a520ef1788c27be24d7a68"
+
+wifi:
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+    - ssid: SINKOVIC_EXT
+      password: !secret wifi_password
+
+  manual_ip:
+    static_ip: 192.168.1.84
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+
+  ap:
+    ssid: "Ph-Sensor Fallback"
+    password: "12345678"
+
+web_server:
+  port: 80
+
+# =====================
+# GLOBAL STATUS
+# =====================
+text_sensor:
+  - platform: template
+    name: "PH Status"
+    id: ph_status
+
+# =====================
+# STEPPERS
+# =====================
+stepper:
+  - platform: uln2003
+    id: stepper_sonda
+    pin_a: GPIO16
+    pin_b: GPIO17
+    pin_c: GPIO18
+    pin_d: GPIO19
+    max_speed: 150 steps/s
+    acceleration: 80
+    deceleration: 80
+    sleep_when_done: true
+
+  - platform: uln2003
+    id: stepper_posudica
+    pin_a: GPIO21
+    pin_b: GPIO22
+    pin_c: GPIO23
+    pin_d: GPIO33
+    max_speed: 150 steps/s
+    acceleration: 80
+    deceleration: 80
+    sleep_when_done: true
+
+# =====================
+# Pozicija stepper motra
+# =====================
+sensor:
+- platform: template
+  name: "Pozicija sonde"
+  id: pozicija_sonde
+  lambda: |-
+    return id(stepper_sonda).current_position;
+  update_interval: 500ms
+
+- platform: template
+  name: "Pozicija posudice"
+  id: pozicija_posudice
+  lambda: |-
+    return id(stepper_posudica).current_position;
+  update_interval: 500ms
+  
+
+# =====================
+# LIMIT SWITCHES (NC)
+# =====================
+binary_sensor:
+  - platform: gpio
+    id: limit_sonda
+    pin:
+      number: GPIO26
+      mode:
+        input: true
+        pullup: true
+
+  - platform: gpio
+    id: limit_posudica
+    pin:
+      number: GPIO25
+      mode:
+        input: true
+        pullup: true
+
+# =====================
+# RELEJ PUMPA
+# =====================
+output:
+  - platform: gpio
+    pin: GPIO32
+    id: pumpa
+
+# =====================
+# Gumb za relej
+# =====================
+switch:
+  - platform: output
+    id: pumpa_trog
+    name: "Pumpa za ispiranje"
+    output: pumpa
+
+# =====================
+# POZICIJE
+# =====================
+number:
+  - platform: template
+    id: pos_skladiste
+    name: "Sonda KCl"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: -2100
+
+  - platform: template
+    id: pos_mjerenje
+    name: "Sonda MJERENJE"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: -3000
+
+  - platform: template
+    id: pos_ispiranje
+    name: "Sonda ISPIRANJE"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: -880
+
+  - platform: template
+    id: pos_gore
+    name: "Sonda GORE"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: 0
+
+  - platform: template
+    id: posudica_kcl
+    name: "Posudica KCl"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: 6940
+
+  - platform: template
+    id: posudica_mjerenje
+    name: "Posudica MJERENJE"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: 0
+
+  - platform: template
+    id: posudica_ispiranje
+    name: "Posudica ISPIRANJE"
+    min_value: -8000
+    max_value: 8000
+    step: 10
+    optimistic: true
+    initial_value: 4010
+
+# =====================
+# HELPER FUNKCIJE
+# =====================
+script:
+
+  # ---------------------
+  # HOMING SONDA
+  # ---------------------
+  - id: home_sonda
+    mode: single
+    then:
+      - text_sensor.template.publish:
+          id: ph_status
+          state: "HOMING SONDA"
+
+      - stepper.set_speed:
+          id: stepper_sonda
+          speed: 120 steps/s
+
+
+      - stepper.set_target:
+          id: stepper_sonda
+          target: 100000
+      
+      - wait_until:
+          condition:
+            binary_sensor.is_on: limit_sonda
+          timeout: 120s
+      
+      - stepper.report_position:
+          id: stepper_sonda
+          position: 0
+
+      - stepper.set_target:
+          id: stepper_sonda
+          target: 0
+
+  # ---------------------
+  # HOMING POSUDICA
+  # ---------------------
+  - id: home_posudica
+    mode: single
+    then:
+      - text_sensor.template.publish:
+          id: ph_status
+          state: "HOMING POSUDICA"
+
+      - stepper.set_target:
+          id: stepper_posudica
+          target: -8000
+
+      - wait_until:
+          condition:
+            binary_sensor.is_on: limit_posudica
+          timeout: 120s
+
+      - stepper.report_position:
+          id: stepper_posudica
+          position: 0
+
+      - stepper.set_target:
+          id: stepper_posudica
+          target: 0
+
+  # ---------------------
+  # HOMING SVE
+  # ---------------------
+  - id: homing_all
+    mode: single
+    then:
+      - script.execute: home_sonda
+      - script.execute: home_posudica
+      - text_sensor.template.publish:
+          id: ph_status
+          state: "IDLE"
+
+  # ---------------------
+  # POMAKNI POSUDICU
+  # ---------------------
+  - id: pomakni_posudicu
+    parameters: 
+      pozicija: int
+    then:
+      - stepper.set_target:
+          id: stepper_posudica
+          target: !lambda "return pozicija;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_posudica).current_position == pozicija;
+
+  # ---------------------
+  # POMAKNI SONDU
+  # ---------------------
+  - id: pomakni_sondu
+    parameters: 
+      pozicija: int
+    then:
+      - stepper.set_target: 
+          id: stepper_sonda
+          target: !lambda "return pozicija;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position == pozicija;
+
+  
+  # ---------------------
+  # MJERENJE CIKLUS
+  # ---------------------
+  - id: automatsko_mjerenje
+    mode: single
+    then:
+
+      - text_sensor.template.publish:
+          id: ph_status
+          state: "MJERENJE"
+
+      # 1. gore
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_gore).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position == id(pos_gore).state;
+
+      # 2. makni KCl
+      - stepper.set_target:
+          id: stepper_posudica
+          target: !lambda "return id(posudica_mjerenje).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_posudica).current_position ==
+                  id(stepper_posudica).target_position;
+
+      # 3. mjerenje
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_mjerenje).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;
+
+      - delay: 5s
+      #Napravi skriptu za očitavanje pH senzora i spremi vrijednost u varijablu
+
+
+
+      # 4. gore
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_gore).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;
+
+      # 5. ispiranje
+      - stepper.set_target:
+          id: stepper_posudica
+          target: !lambda "return id(posudica_ispiranje).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_posudica).current_position ==
+                  id(stepper_posudica).target_position;
+
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_ispiranje).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;    
+
+      - output.turn_on: pumpa
+      - delay: 7s
+      - output.turn_off: pumpa
+
+      # 5.1 podizanje sonde
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_gore).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;
+
+      # 6. povratak u skladiste
+      - stepper.set_target:
+          id: stepper_posudica
+          target: !lambda "return id(posudica_kcl).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_posudica).current_position ==
+                  id(stepper_posudica).target_position;
+
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_skladiste).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;
+
+      - text_sensor.template.publish:
+          id: ph_status
+          state: "IDLE"
+
+# =====================
+# MANUAL BUTTONS
+# =====================
+button:
+
+  - platform: template
+    name: "START MJERENJE"
+    on_press:
+      - script.execute: automatsko_mjerenje
+
+  - platform: template
+    name: "HOME ALL"
+    on_press:
+      - script.execute: homing_all
+
+  - platform: template
+    name: "Sonda GORE"
+    on_press:
+      then:
+        - stepper.set_target:
+            id: stepper_sonda
+            target: !lambda "return id(stepper_sonda).current_position + 100;"
+
+  - platform: template
+    name: "Sonda DOLJE"
+    on_press:
+      then:
+        - stepper.set_target:
+            id: stepper_sonda
+            target: !lambda "return id(stepper_sonda).current_position - 100;"
+          
+  - platform: template
+    name: "Sonda HOME (MAX GORE)"
+    on_press:
+      then:
+        - stepper.report_position:
+            id: stepper_sonda
+            position: 0
+        - stepper.set_target:
+            id: stepper_sonda
+            target: 0
+
+  # Ručne kontrole za stepper_posudica
+  - platform: template
+    name: "Posudica LIJEVO"
+    on_press:
+      then:
+        - stepper.set_target:
+            id: stepper_posudica
+            target: !lambda "return id(stepper_posudica).current_position - 100;"
+    
+  - platform: template
+    name: "Posudica DESNO"
+    on_press:
+      then:
+        - stepper.set_target:
+            id: stepper_posudica
+            target: !lambda "return id(stepper_posudica).current_position + 100;"
+
+  - platform: template
+    name: "Posudica HOME (MAX LIJEVO)"
+    on_press:
+      then:
+        - stepper.report_position:
+            id: stepper_posudica
+            position: 0
+        - stepper.set_target:
+            id: stepper_posudica
+            target: 0
