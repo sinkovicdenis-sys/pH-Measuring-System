@@ -435,6 +435,31 @@ button:
       - script.execute: homing_all
 
   - platform: template
+    name: "Posuda SPREMIŠTE"
+    on_press: 
+      then:
+        - stepper.set_target: 
+            id stepper_posudica
+            target: !lambda "return id(pos_skladiste).state"
+
+        - wait_until:
+            lambda: |-
+                return id(stepper.posudica).current_position == id(stepper.posudica).target_position
+
+  - platform: template
+    name: "Sonda SPREMIŠTE"
+    on_press: 
+      then:
+        - stepper.set_target: 
+            id stepper_sonda
+            target: !lambda "return id(skladiste).state"
+
+        - wait_until:
+            lambda: |-
+                return id(stepper.sonda).current_position == id(stepper.sonda).target_position
+
+
+  - platform: template
     name: "Sonda GORE"
     on_press:
       then:
