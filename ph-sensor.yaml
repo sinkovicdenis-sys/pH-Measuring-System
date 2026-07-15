@@ -439,24 +439,24 @@ button:
     on_press: 
       then:
         - stepper.set_target: 
-            id stepper_posudica
-            target: !lambda "return id(pos_skladiste).state"
+            id: stepper_posudica
+            target: !lambda "return id(pos_skladiste).state;"
 
         - wait_until:
             lambda: |-
-                return id(stepper.posudica).current_position == id(stepper.posudica).target_position
+                return id(stepper_posudica).current_position == id(stepper_posudica).target_position;
 
   - platform: template
     name: "Sonda SPREMIŠTE"
     on_press: 
       then:
         - stepper.set_target: 
-            id stepper_sonda
-            target: !lambda "return id(skladiste).state"
+            id: stepper_sonda
+            target: !lambda "return id(posudica_kcl).state;"
 
         - wait_until:
             lambda: |-
-                return id(stepper.sonda).current_position == id(stepper.sonda).target_position
+                return id(stepper_sonda).current_position == id(stepper_sonda).target_position;
 
 
   - platform: template
