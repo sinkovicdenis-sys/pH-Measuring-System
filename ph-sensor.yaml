@@ -272,7 +272,15 @@ script:
     mode: single
     then:
       - script.execute: home_sonda
+      - wait_until:
+          condition:
+            binary_sensor.is_on: limit_sonda
+          timeout: 120s
       - script.execute: home_posudica
+      - wait_until:
+          condition:
+            binary_sensor.is_on: limit_posudica
+          timeout: 120s
       - text_sensor.template.publish:
           id: ph_status
           state: "IDLE"
@@ -433,6 +441,31 @@ button:
     name: "HOME ALL"
     on_press:
       - script.execute: homing_all
+
+  - platform: template
+    name: "Posuda SPREMIŠTE"
+    on_press: 
+      then:
+        - stepper.set_target: 
+            id: stepper_posudica
+            target: !lambda "return id(pos_skladiste).state;"
+
+        - wait_until:
+            lambda: |-
+                return id(stepper_posudica).current_position == id(stepper_posudica).target_position;
+
+  - platform: template
+    name: "Sonda SPREMIŠTE"
+    on_press: 
+      then:
+        - stepper.set_target: 
+            id: stepper_sonda
+            target: !lambda "return id(posudica_kcl).state;"
+
+        - wait_until:
+            lambda: |-
+                return id(stepper_sonda).current_position == id(stepper_sonda).target_position;
+
 
   - platform: template
     name: "Sonda GORE"
