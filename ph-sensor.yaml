@@ -154,7 +154,7 @@ number:
     max_value: 8000
     step: 10
     optimistic: true
-    initial_value: -3000
+    initial_value: -7560
 
   - platform: template
     id: pos_ispiranje
@@ -336,7 +336,44 @@ script:
           lambda: |-
             return id(stepper_sonda).current_position == id(pos_gore).state;
 
-      # 2. makni KCl
+
+
+      # 2. stavi posudicu za pranje ispod sonde
+      - stepper.set_target:
+          id: stepper_posudica
+          target: !lambda "return id(posudica_ispiranje).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_posudica).current_position ==
+                  id(stepper_posudica).target_position;
+
+      # 3. spusti sondu u posudicu za pranje
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_ispiranje).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;
+
+      # 4. Aktiviraj pumpu za ispiranje
+      - output.turn_on: pumpa
+      - delay: 7s
+      - output.turn_off: pumpa
+
+      # 5. podigni sondu
+      - stepper.set_target:
+          id: stepper_sonda
+          target: !lambda "return id(pos_gore).state;"
+
+      - wait_until:
+          lambda: |-
+            return id(stepper_sonda).current_position ==
+                  id(stepper_sonda).target_position;
+
+      # 6. makni posudice
       - stepper.set_target:
           id: stepper_posudica
           target: !lambda "return id(posudica_mjerenje).state;"
@@ -346,7 +383,8 @@ script:
             return id(stepper_posudica).current_position ==
                   id(stepper_posudica).target_position;
 
-      # 3. mjerenje
+
+      # 7. mjerenje
       - stepper.set_target:
           id: stepper_sonda
           target: !lambda "return id(pos_mjerenje).state;"
@@ -361,7 +399,7 @@ script:
 
 
 
-      # 4. gore
+      # 8. gore
       - stepper.set_target:
           id: stepper_sonda
           target: !lambda "return id(pos_gore).state;"
@@ -371,7 +409,7 @@ script:
             return id(stepper_sonda).current_position ==
                   id(stepper_sonda).target_position;
 
-      # 5. ispiranje
+      # 9. ispiranje
       - stepper.set_target:
           id: stepper_posudica
           target: !lambda "return id(posudica_ispiranje).state;"
