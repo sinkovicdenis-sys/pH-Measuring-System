@@ -486,7 +486,7 @@ button:
       then:
         - stepper.set_target: 
             id: stepper_posudica
-            target: !lambda "return id(pos_skladiste).state;"
+            target: !lambda "return id(posudica_kcl).state;"
 
         - wait_until:
             lambda: |-
@@ -498,7 +498,7 @@ button:
       then:
         - stepper.set_target: 
             id: stepper_sonda
-            target: !lambda "return id(posudica_kcl).state;"
+            target: !lambda "return id(pos_skladiste).state;"
 
         - wait_until:
             lambda: |-
