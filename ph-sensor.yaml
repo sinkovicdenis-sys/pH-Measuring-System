@@ -13,6 +13,25 @@ esp32:
 
 logger:
 
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  on_message:
+    - topic: phsensor/measurement/done
+      payload: "done"
+      then:
+        - globals.set:
+            id: ph_measurement_done
+            value: "true"
+    - topic: phsensor/movement/posudica
+      payload: "desno"
+      then:
+        - script.execute:
+            id: pomakni_posudicu
+            parameters:
+              pozicija: !lambda  return id(stepper_posudica).current_position + 100;
+
 api:
   encryption:
     key: "OpipMu63WiU708qH9wR9ekQ6ND19DrLzTUGC5ySd/cQ="
@@ -62,7 +81,7 @@ stepper:
     pin_b: GPIO17
     pin_c: GPIO18
     pin_d: GPIO19
-    max_speed: 150 steps/s
+    max_speed: 200 steps/s
     acceleration: 80
     deceleration: 80
     sleep_when_done: true
@@ -73,29 +92,10 @@ stepper:
     pin_b: GPIO22
     pin_c: GPIO23
     pin_d: GPIO33
-    max_speed: 150 steps/s
+    max_speed: 200 steps/s
     acceleration: 80
     deceleration: 80
     sleep_when_done: true
-
-# =====================
-# Pozicija stepper motra
-# =====================
-sensor:
-- platform: template
-  name: "Pozicija sonde"
-  id: pozicija_sonde
-  lambda: |-
-    return id(stepper_sonda).current_position;
-  update_interval: 500ms
-
-- platform: template
-  name: "Pozicija posudice"
-  id: pozicija_posudice
-  lambda: |-
-    return id(stepper_posudica).current_position;
-  update_interval: 500ms
-  
 
 # =====================
 # LIMIT SWITCHES (NC)
@@ -200,7 +200,11 @@ number:
     step: 10
     optimistic: true
     initial_value: 4010
-
+globals:
+  - id: ph_measurement_done
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 # =====================
 # HELPER FUNKCIJE
 # =====================
@@ -394,10 +398,19 @@ script:
             return id(stepper_sonda).current_position ==
                   id(stepper_sonda).target_position;
 
-      - delay: 5s
-      #Napravi skriptu za očitavanje pH senzora i spremi vrijednost u varijablu
+      - globals.set:
+          id: ph_measurement_done
+          value: "false"
 
+      - mqtt.publish:
+          topic: phsensor/measurement/start
+          payload: "start"
 
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(ph_measurement_done);
+          timeout: 120s
 
       # 8. gore
       - stepper.set_target:

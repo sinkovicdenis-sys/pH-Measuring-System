@@ -1,0 +1,40 @@
+esphome:
+  name: ph-sensor-slave
+  friendly_name: pH_Sensor_Slave
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+api:
+
+ota:
+  - platform: esphome
+    password: "change-me"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  on_message:
+    - topic: phsensor/measurement/start
+      payload: "start"
+      then:
+        - script.execute: izvrsi_mjerenje_ph
+
+script:
+  - id: izvrsi_mjerenje_ph
+    then:
+      - logger.log: "Početak pH mjerenja na drugom ESP32-u"
+      - delay: 5s
+      - mqtt.publish:
+          topic: phsensor/measurement/done
+          payload: "done"
+      - logger.log: "pH mjerenje završeno"
