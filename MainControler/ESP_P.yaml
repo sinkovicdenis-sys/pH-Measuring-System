@@ -1,0 +1,568 @@
+esphome:
+  name: esp-p
+  friendly_name: ESP_P
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+one_wire:
+    pin: 25
+    platform: gpio
+    id: dallas
+
+mqtt:
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+
+
+# Enable logging
+logger:
+
+# Varijable za EC i pH regulaciju
+globals:
+  - id: integral_ec
+    type: float
+    initial_value: '0.0'
+  - id: last_error_ec
+    type: float
+    initial_value: '0.0'
+
+  - id: integral_ph
+    type: float
+    initial_value: '0.0'
+  - id: last_error_ph
+    type: float
+    initial_value: '0.0'
+
+  - id: last_ph_correction
+    type: long
+    restore_value: no
+    initial_value: '0'
+  - id: last_ec_correction
+    type: long
+    restore_value: no
+    initial_value: '0'
+  - id: ph_daily_dose
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: ec_daily_dose
+    type: int
+    restore_value: no
+    initial_value: '0'
+  
+  # Varijable za kalibraciju pH senzora
+  - id: cal_step
+    type: int
+    restore_value: true
+    initial_value: '0'
+
+  - id: calibration_active
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  - id: adc_ph4
+    type: float
+    restore_value: true
+    initial_value: '0'
+
+  - id: ph4_izmjeren
+    type: bool
+    restore_value: false
+    initial_value: 'false' 
+
+  - id: adc_ph7
+    type: float
+    restore_value: true
+    initial_value: '0'
+
+  - id: ph7_izmjeren
+    type: bool
+    restore_value: false
+    initial_value: 'false' 
+
+  - id: adc_ph10
+    type: float
+    restore_value: true
+    initial_value: '0'
+
+  - id: ph10_izmjeren
+    type: bool
+    restore_value: false
+    initial_value: 'false' 
+
+  - id: ph_slope
+    type: float
+    restore_value: true
+    initial_value: '-5.7'
+
+  - id: ph_offset
+    type: float
+    restore_value: true
+    initial_value: '21.34'
+
+
+# Postavke PID ciljeva i konstanti
+number:
+
+
+  - platform: template
+    name: "EC Target"
+    id: ec_target
+    min_value: 0.0
+    max_value: 3.0
+    step: 0.1
+    initial_value: 1.6
+    optimistic: true
+  - platform: template
+    name: "pH Target"
+    id: ph_target
+    min_value: 4.0
+    max_value: 8.0
+    step: 0.1
+    initial_value: 5.8
+    optimistic: true
+
+    # EC PID konstante
+  - platform: template
+    name: "Kp EC"
+    id: kp_ec
+    min_value: 0.0
+    max_value: 10.0
+    step: 0.1
+    initial_value: 1.2
+    optimistic: true
+  - platform: template
+    name: "Ki EC"
+    id: ki_ec
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.01
+    initial_value: 0.1
+    optimistic: true
+  - platform: template
+    name: "Kd EC"
+    id: kd_ec
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.01
+    initial_value: 0.01
+    optimistic: true
+
+    # pH PID konstante
+  - platform: template
+    name: "Kp pH"
+    id: kp_ph
+    min_value: 0.0
+    max_value: 10.0
+    step: 0.1
+    initial_value: 1.0
+    optimistic: true
+  - platform: template
+    name: "Ki pH"
+    id: ki_ph
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.01
+    initial_value: 0.05
+    optimistic: true
+  - platform: template
+    name: "Kd pH"
+    id: kd_ph
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.01
+    initial_value: 0.01
+    optimistic: true
+
+
+
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "eUahI5ei7RzlrNUwHDJ9SQYCm90u0zRs6iTx/0j58qQ="
+
+ota:
+  - platform: esphome
+    password: "ef67f532c36af044671dc31b7bb64dff"
+
+wifi:
+  ssid: SINKOVIC
+  password: !secret wifi_password
+
+    # Optional manual IP
+  manual_ip:
+    static_ip: 192.168.1.81
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esp-P Fallback Hotspot"
+    password: "liIoJ7TTEgpy"
+
+captive_portal:
+
+# Example configuration entry
+web_server:
+  port: 80
+
+time:
+  - platform: homeassistant
+    id: home_time
+
+# Relayi za napajanje senzora i pumpi
+switch:
+  - platform: gpio
+    pin: GPIO16
+    id: relay_nft_pump
+    name: "NFT Pump"
+    inverted: yes
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: GPIO17
+    id: relay_ec_minus
+    name: "Relay EC-"
+    inverted: yes
+    restore_mode: ALWAYS_OFF
+
+  - platform: gpio
+    pin: GPIO22
+    id: relay_ph_power
+    inverted: yes
+    name: "Relay pH Power"
+
+  - platform: gpio
+    pin: GPIO21
+    id: relay_ph_plus
+    name: "Relay pH+"
+    inverted: yes
+
+  - platform: gpio
+    pin: GPIO19
+    id: relay_ph_minus
+    name: "Relay pH-"
+    inverted: yes
+
+  - platform: gpio
+    pin: GPIO18
+    id: ec_pump
+    name: "Relay EC+"
+    inverted: yes
+
+  - platform: gpio
+    pin: GPIO23
+    id: relay_ec_power
+    name: "Relay EC Power 17"
+    inverted: yes
+
+# Senzori
+sensor:
+  - platform: wifi_signal
+    name: "WiFi Signal Sensor"
+    update_interval: 60s
+    
+  - platform: adc
+    pin: GPIO33
+    id: ph1
+    name: "pH Sensor 1"
+    update_interval: 1s
+    unit_of_measurement: "pH"
+    filters:
+    - median:
+        window_size: 7
+        send_every: 1
+    - throttle_average: 6s
+
+  - platform: adc
+    pin: GPIO32
+    id: ph2
+    name: "pH Sensor 2"
+    update_interval: 1s
+    unit_of_measurement: "pH"
+    attenuation: 12db
+    filters:
+    - median:
+        window_size: 7
+        send_every: 1
+    - throttle_average: 6s
+
+
+  # pH vrijednost
+  - platform: template
+    name: "pH Vrijednost"
+    id: finalph
+    update_interval: 6s
+    unit_of_measurement: "pH"
+    lambda: |-
+      if (id(calibration_active)) {
+        return NAN;
+      }
+      return id(ph_slope) * id(ph2).state + id(ph_offset);
+
+  - platform: adc
+    pin: GPIO34
+    id: ec_sensor
+    name: "EC Sensor"
+    update_interval: 5s
+    unit_of_measurement: "mS/cm"
+    filters:
+      - median:
+          window_size: 30
+          send_every: 1
+          send_first_at: 1
+
+
+script:
+  # Skripta za rad pumpi
+  - id: dose_ec
+    parameters:
+      duration: float
+    then:
+      - switch.turn_on: ec_pump
+      - delay: !lambda "return (int)(duration * 1000);"
+      - switch.turn_off: ec_pump
+
+  - id: dose_ph_plus
+    parameters:
+      duration: float
+    then:
+      - switch.turn_on: relay_ph_plus
+      - delay: !lambda "return (int)(duration * 1000);"
+      - switch.turn_off: relay_ph_plus
+
+  - id: dose_ph_minus
+    parameters:
+      duration: float
+    then:
+      - switch.turn_on: relay_ph_minus
+      - delay: !lambda "return (int)(duration * 1000);"
+      - switch.turn_off: relay_ph_minus
+
+
+
+  # Skripta za ažuriranje vrijednosti pH mjerenja na labelu
+  - id: update_phs
+
+    then:
+      - text_sensor.template.publish:
+
+          id: ph4_result
+          state: !lambda |-
+            if (!id(ph4_izmjeren)) return {"NA"};
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%.3f V", id(adc_ph4));
+            return std::string(buffer);
+
+      - text_sensor.template.publish:
+          id: ph7_result
+          state: !lambda |-
+            if (!id(ph7_izmjeren)) return {"NA"};
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%.3f V", id(adc_ph7));
+            return std::string(buffer);
+
+      - text_sensor.template.publish:
+          id: ph10_result
+          state: !lambda |-
+            if (!id(ph10_izmjeren)) return {"NA"};
+            char buffer[32];
+            snprintf(buffer, sizeof(buffer), "%.3f V", id(adc_ph10));
+            return std::string(buffer);
+
+      - script.execute: check_if_cal_done          
+
+  # Skripta za učitavanje kalibracijskih vrijednosti (Ovdje promijeni vrijednosti etalona)
+  - id: load_cal_results
+    then:
+        - lambda: |-
+              id(ph_slope) =
+                (9.18 - 4.01) / (id(adc_ph10) - id(adc_ph4));
+              id(ph_offset) =
+                6.86 - id(ph_slope) * id(adc_ph7);
+
+              id(calibration_active) = false;
+              id(ph4_izmjeren) = false;
+              id(ph7_izmjeren) = false;
+              id(ph10_izmjeren) = false;
+        - text_sensor.template.publish:
+            id: pHLog
+            state: !lambda |-
+              char buffer[128];
+              snprintf(buffer, sizeof(buffer),
+              "pH4=%.3f pH7=%.3f pH10=%.3f",
+              id(adc_ph4), id(adc_ph7), id(adc_ph10));
+              return {buffer};
+
+        - script.execute: update_phs
+
+  #Skripta za mjerenje pH 4.0
+  - id: measure_ph4
+    then:
+      - lambda: |-
+          float adc = id(ph2).state;
+          id(adc_ph4) = adc;
+          id(ph4_izmjeren) = true;
+          id(calibration_active) = true;
+      - script.execute: update_phs
+
+  #Skripta za mjerenje pH 7.0
+  - id: measure_ph7
+    then:
+      - lambda: |-
+            float adc = id(ph2).state;
+            id(adc_ph7) = adc;
+            id(ph7_izmjeren) = true;
+            id(calibration_active) = true;
+      - script.execute: update_phs
+
+  # Skripta za mjerenje pH 10.0
+  - id: measure_ph10
+    then:
+      - lambda: |-
+            float adc = id(ph2).state;
+            id(adc_ph10) = adc;
+            id(ph10_izmjeren) = true;
+            id(calibration_active) = true;
+      - script.execute: update_phs
+  
+  # Skripta za provjeru stanja kalibracije
+  - id: check_if_cal_done
+    then:
+      - text_sensor.template.publish:
+          id: StatuspHKalibracije
+          state: !lambda |-
+            if (id(ph4_izmjeren) && id(ph7_izmjeren) && id(ph10_izmjeren) ) return {"Spremno za učitanje vrijednosti"};
+            return {"Kalibracija izvršena"};
+
+# Kalibracija
+text_sensor:
+  - platform: template
+    name: "Status pH kalibracije"
+    id: StatuspHKalibracije
+    update_interval: never
+
+  - platform: template
+    name: "Log pH kalibracije"
+    id: pHLog
+    update_interval: never
+
+# Labeli za ispis rezultata mjerenja
+
+  - platform: template
+    name: "Rezultat mjerenja 4.0:"
+    id: ph4_result
+    update_interval: never
+
+  - platform: template
+    name: "Rezultat mjerenja 7.0:"
+    id: ph7_result
+    update_interval: never
+
+  - platform: template
+    name: "Rezultat mjerenja 10.0:"
+    id: ph10_result
+    update_interval: never
+
+# Kalibracija
+button:
+  - platform: template
+    name: "Pomakni posudicu desno"
+    icon: mdi:arrow-right-bold
+    on_press:
+        - mqtt.publish:
+            topic: phsensor/movement/posudica
+            payload: "desno"
+
+  - platform: template
+    name: "Učitaj vrijednosti kalibracije"
+    icon: mdi:flask
+    on_press:
+        - script.execute: load_cal_results
+
+  - platform: template
+    name: "Mjeri pH 4.0"
+    icon: mdi:flask
+    on_press:
+        - script.execute: measure_ph4
+        - script.execute: check_if_cal_done
+
+  - platform: template
+    name: "Mjeri pH 7.0"
+    icon: mdi:flask
+    on_press:
+        - script.execute: measure_ph7
+
+  - platform: template
+    name: "Mjeri pH 10.0"
+    icon: mdi:flask
+    on_press:
+        - script.execute: measure_ph10
+      
+# PID regulacija svakih 12h
+interval:
+  - interval: 12h
+    then:
+      - lambda: |-
+          // === EC PID ===
+          float current_ec = id(ec_sensor).state;
+          float target_ec = id(ec_target).state;
+
+          float error_ec = target_ec - current_ec;
+          float delta_ec = error_ec - id(last_error_ec);
+
+          id(integral_ec) += error_ec * 43200.0; // 12h u sekundama
+          float output_ec = id(kp_ec).state * error_ec 
+                          + id(ki_ec).state * id(integral_ec) 
+                          + id(kd_ec).state * delta_ec / 43200.0;
+
+          id(last_error_ec) = error_ec;
+
+          if (output_ec < 0) output_ec = 0;
+          if (output_ec > 5) output_ec = 5;  // max 5s
+
+          ESP_LOGI("PID", "EC: %.2f, Error: %.2f, Output: %.2f s", current_ec, error_ec, output_ec);
+
+          if (output_ec > 0.1) {
+            id(dose_ec)->execute(output_ec);
+          }
+
+          // === pH PID ===
+          float current_ph = id(ph1).state;
+          float target_ph = id(ph_target).state;
+
+          float error_ph = target_ph - current_ph;
+          float delta_ph = error_ph - id(last_error_ph);
+
+          // Ograničenje integralne komponente (Anti-Windup)
+          id(integral_ph) += error_ph * 43200.0;
+          if (id(integral_ph) > 1000.0) id(integral_ph) = 1000.0; // Gornja granica
+          if (id(integral_ph) < -1000.0) id(integral_ph) = -1000.0; // Donja granica
+
+          // Izračun PID izlaza
+          float output_ph = id(kp_ph).state * error_ph 
+                          + id(ki_ph).state * id(integral_ph) 
+                          + id(kd_ph).state * delta_ph / 43200.0;
+
+          id(last_error_ph) = error_ph;
+
+          // Ograničenje izlaza
+          if (output_ph < -5) output_ph = -5;
+          if (output_ph > 5)  output_ph = 5;
+
+          // Logiranje dodatnih informacija
+          ESP_LOGI("PID", "pH: %.2f, Error: %.2f, Integral: %.2f, Derivative: %.2f, Output: %.2f s", 
+                   current_ph, error_ph, id(integral_ph), delta_ph / 43200.0, output_ph);
+
+          // Logika za doziranje
+          if (output_ph > 0.1) {
+            id(dose_ph_plus)->execute(output_ph);
+          } else if (output_ph < -0.1) {
+            id(dose_ph_minus)->execute(-output_ph);
+          }
