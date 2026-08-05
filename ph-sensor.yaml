@@ -24,13 +24,13 @@ mqtt:
         - globals.set:
             id: ph_measurement_done
             value: "true"
+            
     - topic: phsensor/movement/posudica
       payload: "desno"
       then:
         - script.execute:
             id: pomakni_posudicu
-            parameters:
-              pozicija: !lambda  return id(stepper_posudica).current_position + 100;
+            pozicija: !lambda "return id(stepper_posudica).current_position + 100;"
 
 api:
   encryption:
