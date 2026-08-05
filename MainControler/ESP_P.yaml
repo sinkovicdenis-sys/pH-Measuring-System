@@ -25,6 +25,10 @@ mqtt:
       payload: "off"
       then:
         - switch.turn_off: ec_pump
+    - topic: phsensor/measurement/ProcedureState
+      payload: "Mjeri"
+      then:
+        - script.execute: ukljuci_sondu_i_mjeri_ph
 
           
 
@@ -534,6 +538,12 @@ button:
     icon: mdi:flask
     on_press:
         - script.execute: measure_ph10
+
+  - platform: template
+    name: "Pokreni mjerenje pH"
+    icon: mdi:flask
+    on_press:
+        - script.execute: PokreniMjerenjePH
       
 # PID regulacija svakih 12h
 interval:
