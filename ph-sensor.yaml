@@ -18,8 +18,8 @@ mqtt:
   username: !secret mqtt_username
   password: !secret mqtt_password
   on_message:
-    - topic: phsensor/measurement/done
-      payload: "done"
+    - topic: phsensor/measurement/ProcedureState
+      payload: "Izmjereno"
       then:
         - globals.set:
             id: ph_measurement_done
@@ -31,6 +31,11 @@ mqtt:
         - script.execute:
             id: pomakni_posudicu
             pozicija: !lambda "return id(stepper_posudica).current_position + 100;"
+
+    - topic: phsensor/measurement/ProcedureState
+      payload: "start"
+      then:
+        - script.execute: automatsko_mjerenje
 
 api:
   encryption:
@@ -403,8 +408,8 @@ script:
           value: "false"
 
       - mqtt.publish:
-          topic: phsensor/measurement/start
-          payload: "start"
+          topic: phsensor/measurement/ProcedureState
+          payload: "Mjeri"
 
       - wait_until:
           condition:
@@ -482,6 +487,18 @@ script:
 # MANUAL BUTTONS
 # =====================
 button:
+
+  - platform: template
+    name: "Pokreni pumpu na Masteru"
+    on_press:
+      - mqtt.publish:
+          topic: phsensor/movement/pumpa
+          payload: "on"
+      - delay: 5s
+      - mqtt.publish:
+          topic: phsensor/movement/pumpa
+          payload: "off"
+
 
   - platform: template
     name: "START MJERENJE"

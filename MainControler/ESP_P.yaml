@@ -16,7 +16,17 @@ mqtt:
   broker: !secret mqtt_broker
   username: !secret mqtt_username
   password: !secret mqtt_password
+  on_message:
+    - topic: phsensor/movement/pumpa
+      payload: "on"
+      then:
+        - switch.turn_on: ec_pump
+    - topic: phsensor/movement/pumpa
+      payload: "off"
+      then:
+        - switch.turn_off: ec_pump
 
+          
 
 # Enable logging
 logger:
@@ -320,6 +330,20 @@ sensor:
 
 
 script:
+  # Skripta za ukljucivanje sonde i mjerenje pH vrijednosti
+  - id: ukljuci_sondu_i_mjeri_ph
+    then:
+      - switch.turn_on: relay_ph_power
+      - delay: 5s
+      - logger.log: "pH mjerenje u tijeku..."
+      - delay: 5s
+      - switch.turn_off: relay_ph_power
+      - logger.log: "pH mjerenje završeno"
+      - mqtt.publish:
+          topic: phsensor/measurement/ProcedureState
+          payload: "Izmjereno"
+
+
   # Skripta za rad pumpi
   - id: dose_ec
     parameters:
@@ -344,7 +368,13 @@ script:
       - switch.turn_on: relay_ph_minus
       - delay: !lambda "return (int)(duration * 1000);"
       - switch.turn_off: relay_ph_minus
-
+    
+  - id: PokreniMjerenjePH
+    then:
+      - mqtt.publish:
+          topic: phsensor/measurement/ProcedureState
+          payload: "start"
+      - logger.log: "Pokrenuto mjerenje pH na drugom ESP32-u"
 
 
   # Skripta za ažuriranje vrijednosti pH mjerenja na labelu
